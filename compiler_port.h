@@ -91,7 +91,7 @@ typedef uint32_t systime_t;
 #if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
    char *strtok_r(char *s, const char *delim, char **last);
 //GCC compiler?
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) && defined(__linux__)
    int strcasecmp(const char *s1, const char *s2) __THROW;
    int strncasecmp(const char *s1, const char *s2, size_t n) __THROW;
    char *strtok_r(char *s, const char *delim, char **last) __THROW;
