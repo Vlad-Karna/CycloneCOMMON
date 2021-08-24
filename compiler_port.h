@@ -122,6 +122,14 @@ typedef uint32_t systime_t;
    #undef __end_packed
    #define __end_packed __attribute__((packed))
    #define __weak __attribute__((weak))
+//Win32 compiler?
+#elif defined(_WIN32)
+   #undef interface
+   #undef __start_packed
+   #define __start_packed
+   #undef __end_packed
+   #define __end_packed
+   #define __weak
 //GCC compiler?
 #elif defined(__GNUC__)
    #undef __start_packed
@@ -155,14 +163,6 @@ typedef uint32_t systime_t;
    #define __start_packed
    #undef __end_packed
    #define __end_packed __attribute__((__packed__))
-   #define __weak
-//Win32 compiler?
-#elif defined(_WIN32)
-   #undef interface
-   #undef __start_packed
-   #define __start_packed
-   #undef __end_packed
-   #define __end_packed
    #define __weak
 #endif
 
