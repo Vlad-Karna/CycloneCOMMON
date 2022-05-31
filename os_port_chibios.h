@@ -6,7 +6,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * Copyright (C) 2010-2021 Oryx Embedded SARL. All rights reserved.
+ * Copyright (C) 2010-2022 Oryx Embedded SARL. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,7 +23,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * @author Oryx Embedded SARL (www.oryx-embedded.com)
- * @version 2.0.4
+ * @version 2.1.6
  **/
 
 #ifndef _OS_PORT_CHIBIOS_H
@@ -32,12 +32,17 @@
 //Dependencies
 #include "ch.h"
 
-//Maximum number of tasks that can be dynamically created
-#ifndef OS_PORT_MAX_TASKS
-   #define OS_PORT_MAX_TASKS 16
-#elif (OS_PORT_MAX_TASKS < 1)
-   #error OS_PORT_MAX_TASKS parameter is not valid
+//Use static or dynamic memory allocation for tasks
+#ifndef OS_STATIC_TASK_SUPPORT
+   #define OS_STATIC_TASK_SUPPORT DISABLED
+#elif (OS_STATIC_TASK_SUPPORT != ENABLED && OS_STATIC_TASK_SUPPORT != DISABLED)
+   #error OS_STATIC_TASK_SUPPORT parameter is not valid
 #endif
+
+//Invalid task identifier
+#define OS_INVALID_TASK_ID NULL
+//Self task identifier
+#define OS_SELF_TASK_ID NULL
 
 //Task priority (normal)
 #ifndef OS_TASK_PRIORITY_NORMAL
@@ -59,8 +64,15 @@
    #define OS_SYSTICKS_TO_MS(n) (n)
 #endif
 
+//Retrieve 64-bit system time (not implemented)
+#ifndef osGetSystemTime64
+   #define osGetSystemTime64() osGetSystemTime()
+#endif
+
 //Task prologue
 #define osEnterTask()
+//Task epilogue
+#define osExitTask()
 //Interrupt service routine prologue
 #define osEnterIsr() CH_IRQ_PROLOGUE(); chSysLockFromISR()
 //Interrupt service routine epilogue
@@ -90,13 +102,34 @@ extern "C" {
 
 
 /**
- * @brief Task object
+ * @brief System time
+ **/
+
+typedef uint32_t systime_t;
+
+
+/**
+ * @brief Task identifier
+ **/
+
+typedef thread_t *OsTaskId;
+
+
+/**
+ * @brief Task control block
  **/
 
 typedef struct
 {
-   thread_t *tp;
-} OsTask;
+   uint64_t dummy;
+} OsTaskTcb;
+
+
+/**
+ * @brief Stack data type
+ **/
+
+typedef uint32_t OsStackType;
 
 
 /**
@@ -132,13 +165,14 @@ void osInitKernel(void);
 void osStartKernel(void);
 
 //Task management
-bool_t osCreateStaticTask(OsTask *task, const char_t *name, OsTaskCode taskCode,
-   void *param, void *stack, size_t stackSize, int_t priority);
-
-OsTask *osCreateTask(const char_t *name, OsTaskCode taskCode,
+OsTaskId osCreateTask(const char_t *name, OsTaskCode taskCode,
    void *param, size_t stackSize, int_t priority);
 
-void osDeleteTask(OsTask *task);
+OsTaskId osCreateStaticTask(const char_t *name, OsTaskCode taskCode,
+   void *param, OsTaskTcb *tcb, OsStackType *stack, size_t stackSize,
+   int_t priority);
+
+void osDeleteTask(OsTaskId taskId);
 void osDelayTask(systime_t delay);
 void osSwitchTask(void);
 void osSuspendAllTasks(void);

@@ -1,6 +1,6 @@
 /**
- * @file os_port_ucos3.c
- * @brief RTOS abstraction layer (Micrium uC/OS-III)
+ * @file os_port_threadx.c
+ * @brief RTOS abstraction layer (Azure RTOS ThreadX)
  *
  * @section License
  *
@@ -32,10 +32,12 @@
 //Dependencies
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include "os_port.h"
-#include "os_port_ucos3.h"
+#include "os_port_threadx.h"
 #include "debug.h"
+
+//Global variable
+static TX_INTERRUPT_SAVE_AREA
 
 
 /**
@@ -44,10 +46,8 @@
 
 void osInitKernel(void)
 {
-   OS_ERR err;
-
-   //Scheduler initialization
-   OSInit(&err);
+   //Low-level initialization
+   _tx_initialize_low_level();
 }
 
 
@@ -57,10 +57,8 @@ void osInitKernel(void)
 
 void osStartKernel(void)
 {
-   OS_ERR err;
-
    //Start the scheduler
-   OSStart(&err);
+   tx_kernel_enter();
 }
 
 
@@ -80,20 +78,15 @@ OsTaskId osCreateStaticTask(const char_t *name, OsTaskCode taskCode,
    void *param, OsTaskTcb *tcb, OsStackType *stack, size_t stackSize,
    int_t priority)
 {
-   OS_ERR err;
-   CPU_STK stackLimit;
-
-   //The watermark limit is used to monitor and ensure that the stack does
-   //not overflow
-   stackLimit = stackSize / 10;
+   UINT status;
 
    //Create a new task
-   OSTaskCreate(tcb, (CPU_CHAR *) name, taskCode, param, priority,
-      stack, stackLimit, stackSize, 0, 1,
-      NULL, OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR, &err);
+   status = tx_thread_create(tcb, (CHAR *) name, (OsTaskFunction) taskCode,
+      (ULONG) param, stack, stackSize * sizeof(uint32_t), priority, priority,
+      1, TX_AUTO_START);
 
    //Check whether the task was successfully created
-   if(err == OS_ERR_NONE)
+   if(status == TX_SUCCESS)
    {
       return (OsTaskId) tcb;
    }
@@ -111,10 +104,8 @@ OsTaskId osCreateStaticTask(const char_t *name, OsTaskCode taskCode,
 
 void osDeleteTask(OsTaskId taskId)
 {
-   OS_ERR err;
-
    //Delete the specified task
-   OSTaskDel((OS_TCB *) taskId, &err);
+   tx_thread_delete((TX_THREAD *) taskId);
 }
 
 
@@ -125,10 +116,8 @@ void osDeleteTask(OsTaskId taskId)
 
 void osDelayTask(systime_t delay)
 {
-   OS_ERR err;
-
    //Delay the task for the specified duration
-   OSTimeDly(OS_MS_TO_SYSTICKS(delay), OS_OPT_TIME_DLY, &err);
+   tx_thread_sleep(OS_MS_TO_SYSTICKS(delay));
 }
 
 
@@ -139,7 +128,7 @@ void osDelayTask(systime_t delay)
 void osSwitchTask(void)
 {
    //Force a context switch
-   OSSched();
+   tx_thread_relinquish();
 }
 
 
@@ -149,14 +138,8 @@ void osSwitchTask(void)
 
 void osSuspendAllTasks(void)
 {
-   OS_ERR err;
-
-   //Make sure the operating system is running
-   if(OSRunning == OS_STATE_OS_RUNNING)
-   {
-      //Suspend scheduler activity
-      OSSchedLock(&err);
-   }
+   //Suspend all tasks
+   TX_DISABLE
 }
 
 
@@ -166,14 +149,8 @@ void osSuspendAllTasks(void)
 
 void osResumeAllTasks(void)
 {
-   OS_ERR err;
-
-   //Make sure the operating system is running
-   if(OSRunning == OS_STATE_OS_RUNNING)
-   {
-      //Resume scheduler activity
-      OSSchedUnlock(&err);
-   }
+   //Resume all tasks
+   TX_RESTORE
 }
 
 
@@ -186,13 +163,13 @@ void osResumeAllTasks(void)
 
 bool_t osCreateEvent(OsEvent *event)
 {
-   OS_ERR err;
+   UINT status;
 
-   //Create an event flag group
-   OSFlagCreate(event, "EVENT", 0, &err);
+   //Create an event object
+   status = tx_event_flags_create(event, "EVENT");
 
-   //Check whether the event flag group was successfully created
-   if(err == OS_ERR_NONE)
+   //Check whether the event was successfully created
+   if(status == TX_SUCCESS)
    {
       return TRUE;
    }
@@ -210,13 +187,11 @@ bool_t osCreateEvent(OsEvent *event)
 
 void osDeleteEvent(OsEvent *event)
 {
-   OS_ERR err;
-
-   //Make sure the operating system is running
-   if(OSRunning == OS_STATE_OS_RUNNING)
+   //Make sure the event object is valid
+   if(event->tx_event_flags_group_id == TX_EVENT_FLAGS_ID)
    {
       //Properly dispose the event object
-      OSFlagDel(event, OS_OPT_DEL_ALWAYS, &err);
+      tx_event_flags_delete(event);
    }
 }
 
@@ -228,10 +203,8 @@ void osDeleteEvent(OsEvent *event)
 
 void osSetEvent(OsEvent *event)
 {
-   OS_ERR err;
-
    //Set the specified event to the signaled state
-   OSFlagPost(event, 1, OS_OPT_POST_FLAG_SET, &err);
+   tx_event_flags_set(event, 1, TX_OR);
 }
 
 
@@ -242,10 +215,10 @@ void osSetEvent(OsEvent *event)
 
 void osResetEvent(OsEvent *event)
 {
-   OS_ERR err;
+   ULONG actualFlags;
 
    //Force the specified event to the nonsignaled state
-   OSFlagPost(event, 1, OS_OPT_POST_FLAG_CLR, &err);
+   tx_event_flags_get(event, 1, TX_AND_CLEAR, &actualFlags, 0);
 }
 
 
@@ -259,31 +232,26 @@ void osResetEvent(OsEvent *event)
 
 bool_t osWaitForEvent(OsEvent *event, systime_t timeout)
 {
-   OS_ERR err;
+   UINT status;
+   ULONG actualFlags;
 
    //Wait until the specified event is in the signaled state or the timeout
    //interval elapses
-   if(timeout == 0)
-   {
-      //Non-blocking call
-      OSFlagPend(event, 1, 0, OS_OPT_PEND_FLAG_SET_ANY |
-         OS_OPT_PEND_FLAG_CONSUME | OS_OPT_PEND_NON_BLOCKING, NULL, &err);
-   }
-   else if(timeout == INFINITE_DELAY)
+   if(timeout == INFINITE_DELAY)
    {
       //Infinite timeout period
-      OSFlagPend(event, 1, 0, OS_OPT_PEND_FLAG_SET_ANY |
-         OS_OPT_PEND_FLAG_CONSUME | OS_OPT_PEND_BLOCKING, NULL, &err);
+      status = tx_event_flags_get(event, 1, TX_OR_CLEAR, &actualFlags,
+         TX_WAIT_FOREVER);
    }
    else
    {
       //Wait until the specified event becomes set
-      OSFlagPend(event, 1, OS_MS_TO_SYSTICKS(timeout), OS_OPT_PEND_FLAG_SET_ANY |
-         OS_OPT_PEND_FLAG_CONSUME | OS_OPT_PEND_BLOCKING, NULL, &err);
+      status = tx_event_flags_get(event, 1, TX_OR_CLEAR, &actualFlags,
+         OS_MS_TO_SYSTICKS(timeout));
    }
 
    //Check whether the specified event is set
-   if(err == OS_ERR_NONE)
+   if(status == TX_SUCCESS)
    {
       return TRUE;
    }
@@ -303,10 +271,8 @@ bool_t osWaitForEvent(OsEvent *event, systime_t timeout)
 
 bool_t osSetEventFromIsr(OsEvent *event)
 {
-   OS_ERR err;
-
    //Set the specified event to the signaled state
-   OSFlagPost(event, 1, OS_OPT_POST_FLAG_SET, &err);
+   tx_event_flags_set(event, 1, TX_OR);
 
    //The return value is not relevant
    return FALSE;
@@ -324,13 +290,13 @@ bool_t osSetEventFromIsr(OsEvent *event)
 
 bool_t osCreateSemaphore(OsSemaphore *semaphore, uint_t count)
 {
-   OS_ERR err;
+   UINT status;
 
-   //Create a semaphore
-   OSSemCreate(semaphore, "SEMAPHORE", count, &err);
+   //Create a semaphore object
+   status = tx_semaphore_create(semaphore, "SEMAPHORE", count);
 
    //Check whether the semaphore was successfully created
-   if(err == OS_ERR_NONE)
+   if(status == TX_SUCCESS)
    {
       return TRUE;
    }
@@ -348,13 +314,11 @@ bool_t osCreateSemaphore(OsSemaphore *semaphore, uint_t count)
 
 void osDeleteSemaphore(OsSemaphore *semaphore)
 {
-   OS_ERR err;
-
-   //Make sure the operating system is running
-   if(OSRunning == OS_STATE_OS_RUNNING)
+   //Make sure the semaphore object is valid
+   if(semaphore->tx_semaphore_id == TX_SEMAPHORE_ID)
    {
-      //Properly dispose the specified semaphore
-      OSSemDel(semaphore, OS_OPT_DEL_ALWAYS, &err);
+      //Properly dispose the semaphore object
+      tx_semaphore_delete(semaphore);
    }
 }
 
@@ -369,28 +333,22 @@ void osDeleteSemaphore(OsSemaphore *semaphore)
 
 bool_t osWaitForSemaphore(OsSemaphore *semaphore, systime_t timeout)
 {
-   OS_ERR err;
+   UINT status;
 
    //Wait until the semaphore is available or the timeout interval elapses
-   if(timeout == 0)
-   {
-      //Non-blocking call
-      OSSemPend(semaphore, 0, OS_OPT_PEND_NON_BLOCKING, NULL, &err);
-   }
-   else if(timeout == INFINITE_DELAY)
+   if(timeout == INFINITE_DELAY)
    {
       //Infinite timeout period
-      OSSemPend(semaphore, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
+      status = tx_semaphore_get(semaphore, TX_WAIT_FOREVER);
    }
    else
    {
       //Wait until the specified semaphore becomes available
-      OSSemPend(semaphore, OS_MS_TO_SYSTICKS(timeout),
-         OS_OPT_PEND_BLOCKING, NULL, &err);
+      status = tx_semaphore_get(semaphore, OS_MS_TO_SYSTICKS(timeout));
    }
 
    //Check whether the specified semaphore is available
-   if(err == OS_ERR_NONE)
+   if(status == TX_SUCCESS)
    {
       return TRUE;
    }
@@ -408,10 +366,8 @@ bool_t osWaitForSemaphore(OsSemaphore *semaphore, systime_t timeout)
 
 void osReleaseSemaphore(OsSemaphore *semaphore)
 {
-   OS_ERR err;
-
    //Release the semaphore
-   OSSemPost(semaphore, OS_OPT_POST_1, &err);
+   tx_semaphore_put(semaphore);
 }
 
 
@@ -424,13 +380,13 @@ void osReleaseSemaphore(OsSemaphore *semaphore)
 
 bool_t osCreateMutex(OsMutex *mutex)
 {
-   OS_ERR err;
+   UINT status;
 
-   //Create a mutex
-   OSMutexCreate(mutex, "MUTEX", &err);
+   //Create a mutex object
+   status = tx_mutex_create(mutex, "MUTEX", TX_NO_INHERIT);
 
    //Check whether the mutex was successfully created
-   if(err == OS_ERR_NONE)
+   if(status == TX_SUCCESS)
    {
       return TRUE;
    }
@@ -448,13 +404,11 @@ bool_t osCreateMutex(OsMutex *mutex)
 
 void osDeleteMutex(OsMutex *mutex)
 {
-   OS_ERR err;
-
-   //Make sure the operating system is running
-   if(OSRunning == OS_STATE_OS_RUNNING)
+   //Make sure the mutex object is valid
+   if(mutex->tx_mutex_id == TX_MUTEX_ID)
    {
-      //Properly dispose the specified mutex
-      OSMutexDel(mutex, OS_OPT_DEL_ALWAYS, &err);
+      //Properly dispose the mutex object
+      tx_mutex_delete(mutex);
    }
 }
 
@@ -466,10 +420,8 @@ void osDeleteMutex(OsMutex *mutex)
 
 void osAcquireMutex(OsMutex *mutex)
 {
-   OS_ERR err;
-
    //Obtain ownership of the mutex object
-   OSMutexPend(mutex, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
+   tx_mutex_get(mutex, TX_WAIT_FOREVER);
 }
 
 
@@ -480,10 +432,8 @@ void osAcquireMutex(OsMutex *mutex)
 
 void osReleaseMutex(OsMutex *mutex)
 {
-   OS_ERR err;
-
    //Release ownership of the mutex object
-   OSMutexPost(mutex, OS_OPT_POST_NONE, &err);
+   tx_mutex_put(mutex);
 }
 
 
@@ -494,11 +444,10 @@ void osReleaseMutex(OsMutex *mutex)
 
 systime_t osGetSystemTime(void)
 {
-   OS_ERR err;
    systime_t time;
 
    //Get current tick count
-   time = OSTimeGet(&err);
+   time = tx_time_get();
 
    //Convert system ticks to milliseconds
    return OS_SYSTICKS_TO_MS(time);

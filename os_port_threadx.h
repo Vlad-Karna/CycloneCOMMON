@@ -1,6 +1,6 @@
 /**
- * @file os_port_rtx.h
- * @brief RTOS abstraction layer (Keil RTX)
+ * @file os_port_threadx.h
+ * @brief RTOS abstraction layer (Azure RTOS ThreadX)
  *
  * @section License
  *
@@ -26,36 +26,35 @@
  * @version 2.1.6
  **/
 
-#ifndef _OS_PORT_RTX_H
-#define _OS_PORT_RTX_H
+#ifndef _OS_PORT_THREADX_H
+#define _OS_PORT_THREADX_H
 
 //Dependencies
-#ifdef RTX_CUSTOM_HEADER
-   #include RTX_CUSTOM_HEADER
-#else
-   #include "rtl.h"
-#endif
+#include "tx_port.h"
+#include "tx_user.h"
+#include "tx_api.h"
+#include "tx_thread.h"
+#include "tx_semaphore.h"
+#include "tx_event_flags.h"
+#include "tx_mutex.h"
+#include "tx_initialize.h"
 
-//Use static or dynamic memory allocation for tasks
-#ifndef OS_STATIC_TASK_SUPPORT
-   #define OS_STATIC_TASK_SUPPORT DISABLED
-#elif (OS_STATIC_TASK_SUPPORT != ENABLED && OS_STATIC_TASK_SUPPORT != DISABLED)
-   #error OS_STATIC_TASK_SUPPORT parameter is not valid
-#endif
+//Use static memory allocation for tasks
+#define OS_STATIC_TASK_SUPPORT ENABLED
 
 //Invalid task identifier
-#define OS_INVALID_TASK_ID 0
+#define OS_INVALID_TASK_ID NULL
 //Self task identifier
-#define OS_SELF_TASK_ID 0
+#define OS_SELF_TASK_ID NULL
 
 //Task priority (normal)
 #ifndef OS_TASK_PRIORITY_NORMAL
-   #define OS_TASK_PRIORITY_NORMAL 1
+   #define OS_TASK_PRIORITY_NORMAL (TX_MAX_PRIORITIES / 2)
 #endif
 
 //Task priority (high)
 #ifndef OS_TASK_PRIORITY_HIGH
-   #define OS_TASK_PRIORITY_HIGH 2
+   #define OS_TASK_PRIORITY_HIGH (OS_TASK_PRIORITY_NORMAL - 1)
 #endif
 
 //Milliseconds to system ticks
@@ -89,6 +88,13 @@ extern "C" {
 
 
 /**
+ * @brief Task function
+ **/
+
+typedef VOID (*OsTaskFunction)(ULONG param);
+
+
+/**
  * @brief System time
  **/
 
@@ -99,17 +105,14 @@ typedef uint32_t systime_t;
  * @brief Task identifier
  **/
 
-typedef OS_TID OsTaskId;
+typedef TX_THREAD *OsTaskId;
 
 
 /**
  * @brief Task control block
  **/
 
-typedef struct
-{
-   uint32_t dummy;
-} OsTaskTcb;
+typedef TX_THREAD OsTaskTcb;
 
 
 /**
@@ -123,21 +126,21 @@ typedef uint32_t OsStackType;
  * @brief Event object
  **/
 
-typedef OS_SEM OsEvent;
+typedef TX_EVENT_FLAGS_GROUP OsEvent;
 
 
 /**
  * @brief Semaphore object
  **/
 
-typedef OS_SEM OsSemaphore;
+typedef TX_SEMAPHORE OsSemaphore;
 
 
 /**
  * @brief Mutex object
  **/
 
-typedef OS_MUT OsMutex;
+typedef TX_MUTEX OsMutex;
 
 
 /**
@@ -147,21 +150,11 @@ typedef OS_MUT OsMutex;
 typedef void (*OsTaskCode)(void *param);
 
 
-/**
- * @brief Initialization task
- **/
-
-typedef void (*OsInitTaskCode)(void);
-
-
 //Kernel management
 void osInitKernel(void);
-void osStartKernel(OsInitTaskCode task);
+void osStartKernel(void);
 
 //Task management
-OsTaskId osCreateTask(const char_t *name, OsTaskCode taskCode,
-   void *param, size_t stackSize, int_t priority);
-
 OsTaskId osCreateStaticTask(const char_t *name, OsTaskCode taskCode,
    void *param, OsTaskTcb *tcb, OsStackType *stack, size_t stackSize,
    int_t priority);
@@ -198,17 +191,6 @@ systime_t osGetSystemTime(void);
 //Memory management
 void *osAllocMem(size_t size);
 void osFreeMem(void *p);
-
-//Undefine conflicting definitions
-#undef htons
-#undef htonl
-#undef ntohs
-#undef ntohl
-#undef TCP_STATE_CLOSED
-#undef TCP_STATE_LISTEN
-#undef TCP_STATE_SYN_SENT
-#undef TCP_STATE_CLOSING
-#undef TCP_STATE_LAST_ACK
 
 //C++ guard
 #ifdef __cplusplus

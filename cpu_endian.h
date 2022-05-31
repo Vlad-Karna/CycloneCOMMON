@@ -6,7 +6,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * Copyright (C) 2010-2021 Oryx Embedded SARL. All rights reserved.
+ * Copyright (C) 2010-2022 Oryx Embedded SARL. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,7 +23,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * @author Oryx Embedded SARL (www.oryx-embedded.com)
- * @version 2.0.4
+ * @version 2.1.6
  **/
 
 #ifndef _CPU_ENDIAN_H
@@ -258,7 +258,7 @@
    ((uint8_t *)(p))[0] = ((uint16_t)(a) >> 0) & 0xFFU, \
    ((uint8_t *)(p))[1] = ((uint16_t)(a) >> 8) & 0xFFU
 
-//Store unaligned 32-bit integer (big-endian encoding)
+//Store unaligned 16-bit integer (big-endian encoding)
 #define STORE16BE(a, p) \
    ((uint8_t *)(p))[0] = ((uint16_t)(a) >> 8) & 0xFFU, \
    ((uint8_t *)(p))[1] = ((uint16_t)(a) >> 0) & 0xFFU

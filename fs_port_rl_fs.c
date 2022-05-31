@@ -6,7 +6,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * Copyright (C) 2010-2021 Oryx Embedded SARL. All rights reserved.
+ * Copyright (C) 2010-2022 Oryx Embedded SARL. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,7 +23,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * @author Oryx Embedded SARL (www.oryx-embedded.com)
- * @version 2.0.4
+ * @version 2.1.6
  **/
 
 //Dependencies
@@ -41,7 +41,7 @@
  * @return Error code
  **/
 
-error_t fsInit(void)
+__weak_func error_t fsInit(void)
 {
    error_t error;
    fsStatus status;
@@ -91,7 +91,7 @@ bool_t fsFileExists(const char_t *path)
    {
       //The fileID field must be initialized to zero
       fileInfo.fileID = 0;
-      //Find the the specified path name
+      //Find the specified path name
       status = ffind(path, &fileInfo);
 
       //Check status code
@@ -128,7 +128,7 @@ error_t fsGetFileSize(const char_t *path, uint32_t *size)
 
    //The fileID field must be initialized to zero
    fileInfo.fileID = 0;
-   //Find the the specified path name
+   //Find the specified path name
    status = ffind(path, &fileInfo);
 
    //Any error to report?
@@ -165,15 +165,11 @@ error_t fsGetFileStat(const char_t *path, FsFileStat *fileStat)
 
    //The fileID field must be initialized to zero
    fileInfo.fileID = 0;
-   //Find the the specified path name
+   //Find the specified path name
    status = ffind(path, &fileInfo);
 
    //Any error to report?
    if(status != fsOK)
-      return ERROR_FAILURE;
-
-   //Valid file?
-   if((fileInfo.attrib & FS_FAT_ATTR_DIRECTORY) != 0)
       return ERROR_FAILURE;
 
    //Clear file attributes
@@ -492,7 +488,7 @@ bool_t fsDirExists(const char_t *path)
       {
          //The fileID field must be initialized to zero
          fileInfo.fileID = 0;
-         //Find the the specified path name
+         //Find the specified path name
          status = ffind(path, &fileInfo);
 
          //Check status code
