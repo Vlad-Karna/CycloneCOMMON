@@ -200,6 +200,9 @@ typedef unsigned int uint_t;
    //ARM compiler V6?
    #if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
       #define __weak_func __attribute__((weak))
+   //Win32 compiler?
+   #elif defined(_WIN32)
+      #define __weak_func
    //GCC compiler?
    #elif defined(__GNUC__)
       #define __weak_func __attribute__((weak))
@@ -215,9 +218,6 @@ typedef unsigned int uint_t;
    //TI ARM compiler?
    #elif defined(__TI_ARM__)
       #define __weak_func __attribute__((weak))
-   //Win32 compiler?
-   #elif defined(_WIN32)
-      #define __weak_func
    #endif
 #endif
 
