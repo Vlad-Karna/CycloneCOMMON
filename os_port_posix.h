@@ -33,6 +33,10 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+#ifdef __APPLE__
+extern int sem_timedwait(sem_t* sem, const struct timespec* abs_timeout);
+#endif
+
 //Use dynamic memory allocation for tasks
 #define OS_STATIC_TASK_SUPPORT DISABLED
 
