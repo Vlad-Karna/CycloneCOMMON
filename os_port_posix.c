@@ -241,6 +241,9 @@ void osResetEvent(OsEvent *event)
 
 bool_t osWaitForEvent(OsEvent *event, systime_t timeout)
 {
+#ifdef __APPLE__
+return TRUE;
+#else
    int_t ret;
    struct timespec ts;
 
@@ -296,6 +299,7 @@ bool_t osWaitForEvent(OsEvent *event, systime_t timeout)
       //The timeout interval elapsed
       return FALSE;
    }
+#endif
 }
 
 
@@ -363,6 +367,9 @@ void osDeleteSemaphore(OsSemaphore *semaphore)
 
 bool_t osWaitForSemaphore(OsSemaphore *semaphore, systime_t timeout)
 {
+#ifdef __APPLE__
+return TRUE;
+#else
    int_t ret;
    struct timespec ts;
 
@@ -406,6 +413,7 @@ bool_t osWaitForSemaphore(OsSemaphore *semaphore, systime_t timeout)
    {
       return FALSE;
    }
+#endif
 }
 
 
