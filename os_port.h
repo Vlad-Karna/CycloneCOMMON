@@ -121,7 +121,7 @@
 #elif defined(_WIN32)
    #include "os_port_windows.h"
 //POSIX Threads port?
-#elif defined(__linux__) || defined(__FreeBSD__)
+#elif defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
    #include "os_port_posix.h"
 #endif
 
